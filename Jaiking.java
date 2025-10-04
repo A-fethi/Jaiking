@@ -8,6 +8,11 @@ public class Jaiking extends JFrame {
 
     private boolean drawLines = false;
     private ArrayList<Point> points = new ArrayList<>();
+    private ArrayList<Point> smoothPoints = new ArrayList<>();
+    private int smoothIteration = 0;
+    private final int MAX_ITERATIONS = 7;
+    private Timer smoothTimer;
+    private boolean inputLocked = false;
 
     public Jaiking() {
         setTitle("Jaiking");
@@ -22,8 +27,10 @@ public class Jaiking extends JFrame {
         panel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                points.add(e.getPoint());
-                panel.repaint();
+                if (!inputLocked) {
+                    points.add(e.getPoint());
+                    panel.repaint();
+                }
             }
         });
 
@@ -32,7 +39,12 @@ public class Jaiking extends JFrame {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyChar() == 'c' || e.getKeyChar() == 'C') {
                     points.clear();
+                    smoothPoints.clear();
                     drawLines = false;
+                    inputLocked = false;
+                    if (smoothTimer != null) {
+                        smoothTimer.stop();
+                    }
                     panel.repaint();
                 }
 
@@ -40,19 +52,68 @@ public class Jaiking extends JFrame {
                     System.exit(0);
                 }
 
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    System.out.println("Enter Clicked");
+                if (e.getKeyCode() == KeyEvent.VK_ENTER && !inputLocked) {
+                    inputLocked = true;
                     drawLines = true;
                     panel.repaint();
+
+                    if (points.size() <= 2) {
+                        smoothPoints = new ArrayList<>(points);
+                        if (smoothTimer != null) {
+                            smoothTimer.stop();
+                        }
+                    } else {
+                        smoothIteration = 0;
+                        smoothPoints = new ArrayList<>(points);
+
+                        smoothTimer = new Timer(500, new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent evt) {
+                                if (smoothIteration < MAX_ITERATIONS) {
+                                    smoothPoints = chaikinAlgorithm(smoothPoints);
+                                    smoothIteration++;
+                                    panel.repaint();
+                                } else {
+                                    smoothPoints = new ArrayList<>(points);
+                                    smoothIteration = 0;
+                                }
+                                panel.repaint();
+                            }
+                        });
+
+                        smoothTimer.start();
+                    }
+
                 }
             }
         });
     }
 
-    // private void startAnimation() {
-    //     // Placeholder for animation logic
-    //     System.out.println("Starting animation with " + points.size() + " points.");
-    // }
+    private ArrayList<Point> chaikinAlgorithm(ArrayList<Point> input) {
+        if (input.size() <= 2) {
+            return new ArrayList<>(input);
+        }
+
+        ArrayList<Point> newPoints = new ArrayList<>();
+        newPoints.add(input.get(0));
+
+        for (int i = 0; i < input.size() - 1; i++) {
+            Point p1 = input.get(i);
+            Point p2 = input.get(i + 1);
+
+            int qx = Math.round(0.75f * p1.x + 0.25f * p2.x);
+            int qy = Math.round(0.75f * p1.y + 0.25f * p2.y);
+            int rx = Math.round(0.25f * p1.x + 0.75f * p2.x);
+            int ry = Math.round(0.25f * p1.y + 0.75f * p2.y);
+
+            newPoints.add(new Point(qx, qy));
+            newPoints.add(new Point(rx, ry));
+        }
+
+        newPoints.add(input.get(input.size() - 1));
+        return newPoints;
+    }
+
     private class DrawingPanel extends JPanel {
 
         public DrawingPanel() {
@@ -75,9 +136,9 @@ public class Jaiking extends JFrame {
 
         private void drawLines(Graphics g) {
             if (drawLines) {
-                for (int i = 0; i < points.size() - 1; i++) {
-                    Point p1 = points.get(i);
-                    Point p2 = points.get(i + 1);
+                for (int i = 0; i < smoothPoints.size() - 1; i++) {
+                    Point p1 = smoothPoints.get(i);
+                    Point p2 = smoothPoints.get(i + 1);
                     g.drawLine(p1.x, p1.y, p2.x, p2.y);
                 }
             }
